@@ -1,0 +1,77 @@
+- hosts: webserver
+  tasks:
+          - name: "Installing httpd"
+            package:
+                    name: "httpd"
+                    state: present
+
+          - name: "Installing php"
+            package:
+                    name: "php"
+                    state: present
+
+          - name: "copying the file"
+            copy:
+                    src: "/root/index.php"
+                    dest: "/var/www/html/"
+
+
+
+          - name: "Handling the firewall"
+            firewalld:
+
+                    state: enabled
+                    port: 80/tcp
+                    permanent: yes
+
+          - name: "Starting the service"
+            service:
+                    name: "httpd"
+                    state: started
+
+
+
+- hosts: loadbalancer
+  tasks:
+
+          - name: "Installing the haproxy"
+            package:
+                    name: "haproxy"
+                    state: present
+
+          - name: "updating the haproxy.cfg file"
+            blockinfile:
+                    path: /etc/haproxy/haproxy.cfg
+                    block: |
+                            {% for i in groups['webserver'] %}
+                            server app{{ loop.index }} {{ i }}:80 check
+                            {% endfor %}
+            notify: "restart the service"
+
+           - lineinfile:
+
+                  path: /etc/haproxy/haproxy.cfg
+                  regexp: "bind *:5000"
+                  # insertafter: "frontend main"
+                  line: "bind *:8080"
+            notify: "restart the service"
+
+
+          - firewalld:
+                  state: enabled
+                  port: 8080/tcp
+                  permanent: yes
+
+          - service:
+                  name: "haproxy"
+                  state: started
+
+
+  handlers:
+
+          - name: "restart the service"
+            service:
+                    name: "haproxy"
+                    state: restarted
+
+
